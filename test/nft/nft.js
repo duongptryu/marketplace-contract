@@ -1,7 +1,7 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
-describe.only("Petty NFT", function () {
+describe("Petty NFT", function () {
   let [accountA, accountB, accountC] = [];
   let Petty;
   let address0 = "0x0000000000000000000000000000000000000000";
@@ -22,7 +22,7 @@ describe.only("Petty NFT", function () {
     });
 
     it("should mint token correctly", async () => {
-      const mintTx = await petty.mint(accountA.address0);
+      const mintTx = await petty.mint(accountA.address);
       await expect(mintTx)
         .to.be.emit(petty, "Transfer")
         .withArgs(address0, accountA.address, 1);
