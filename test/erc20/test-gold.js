@@ -59,12 +59,13 @@ describe("ERC20 contract - GOLD", function () {
     });
 
     it("Should revert if the token already unpaused", async function () {
+      await token.pause();
       await token.unpause();
-      await expect(await token.unpause()).to.be.reverted;
+      await expect(token.unpause()).to.be.revertedWith("Pausable: not paused");
     });
 
     it("Should pause function work correctly", async function () {
-      const pauseTx = await token.unpause();
+      const pauseTx = await token.pause();
       await expect(pauseTx)
         .to.be.emit(token, "Paused")
         .withArgs(accountA.address);

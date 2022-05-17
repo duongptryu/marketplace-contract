@@ -6,8 +6,9 @@ import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import "hardhat/console.sol";
 
-contract Marketpalce is Ownable {
+contract Marketplace is Ownable {
     using Counters for Counters.Counter;
     using EnumerableSet for EnumerableSet.AddressSet;
 
@@ -94,6 +95,7 @@ contract Marketpalce is Ownable {
 
         feeRate = feeRate_;
         feeDecimal = feeDecimal_;
+        emit FeeRateUpdate(feeDecimal_, feeRate_);
     }
 
     function updateFeeRate(uint256 feeDecimal_, uint256 feeRate_) external {
@@ -150,13 +152,15 @@ contract Marketpalce is Ownable {
         uint256 price_,
         address paymentToken_
     ) public onlySupportedPaymentToken(paymentToken_) {
-
-        require(nftContract.ownerOf(tokenId_) == _msgSender(), 
-        "NFTMarketplace: sender is not owner of token"
+        require(
+            nftContract.ownerOf(tokenId_) == _msgSender(),
+            "NFTMarketplace: sender is not owner of token"
         );
 
         require(
-            nftContract.getApproved(tokenId_) == address(this) || nftContract.isApprovedForAll(_msgSender(), address(this)), "NFTMarketplace: NFTMarketplace price must be greater than 0"
+            nftContract.getApproved(tokenId_) == address(this) ||
+                nftContract.isApprovedForAll(_msgSender(), address(this)),
+            "NFTMarketplace: NFTMarketplace price must be greater than 0"
         );
 
         require(price_ > 0, "NFTMarketplace: price must be greater than 0");
@@ -202,8 +206,8 @@ contract Marketpalce is Ownable {
     function executeOrder(uint256 orderId_) external {
         Order storage _order = orders[orderId_];
 
-        require (_order.price > 0, "NFTMarketplace: order has been canceled");
-        
+        require(_order.price > 0, "NFTMarketplace: order has been canceled");
+
         require(
             !isSeller(orderId_, _msgSender()),
             "NFTMarketplace: buyer must be different from seller"

@@ -1,5 +1,5 @@
 //SPDX-License-Identifier: Unlicense
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.4;
 
 interface IERC20 {
     event Transfer(address indexed _from, address indexed _to, uint256 _value);

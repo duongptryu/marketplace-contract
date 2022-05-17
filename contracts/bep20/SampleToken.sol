@@ -39,7 +39,12 @@ contract SimpleToken is IERC20 {
         return _totalSupply;
     }
 
-    function balanceOf(address _owner) public view override returns (uint256 balance) {
+    function balanceOf(address _owner)
+        public
+        view
+        override
+        returns (uint256 balance)
+    {
         return _balances[_owner];
     }
 
