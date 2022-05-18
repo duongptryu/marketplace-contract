@@ -16,7 +16,7 @@ contract Petty is ERC721, Ownable {
     }
 
     function mint (address to_) public onlyOwner returns (uint256) {
-        _tokenIdCount.increment();
+        _tokenIdCount.increment(); 
         uint256 _tokenId = _tokenIdCount.current();
         _mint(to_, _tokenId);
         return _tokenId;

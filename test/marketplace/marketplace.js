@@ -1,7 +1,7 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
-describe.only("Marketplace", () => {
+describe("Marketplace", () => {
   let [
     admin,
     seller,
