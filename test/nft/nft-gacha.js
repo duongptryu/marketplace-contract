@@ -88,19 +88,44 @@ describe.only("Petty NFT", function () {
 
   describe("breedPetty", () => {
     it("should revert if not owner", async () => {
-      
-    })
+      await pettyGacha.openGacha(4, priceGacha1);
+      await pettyGacha.openGacha(4, priceGacha1);
+      await expect(
+        pettyGacha.connect(accountB).breedPetties(1, 2)
+      ).to.be.revertedWith("PettyGacha: sender is not owner of token");
+    });
     it("should revert if not same rank", async () => {
-      
-    })
+      await pettyGacha.openGacha(4, priceGacha1);
+      await pettyGacha.openGacha(5, priceGacha2);
+      await pettyGacha.setApprovalForAll(pettyGacha.address, true);
+      await expect(pettyGacha.breedPetties(1, 2)).to.be.revertedWith(
+        "PettyGacha: petty must be same rank"
+      );
+    });
     it("should revert if petty is at the highest rank", async () => {
-      
-    })
+      await pettyGacha.openGacha(6, priceGacha3);
+      await pettyGacha.openGacha(6, priceGacha3);
+      await pettyGacha.setApprovalForAll(pettyGacha.address, true);
+      await expect(pettyGacha.breedPetties(1, 2)).to.be.revertedWith(
+        "PettyGacha: petties is at the highest rank"
+      );
+    });
     it("should revert if nft hasn't been approved", async () => {
-      
-    })
+      await pettyGacha.openGacha(6, priceGacha3);
+      await pettyGacha.openGacha(6, priceGacha3);
+      await expect(pettyGacha.breedPetties(1, 2)).to.be.revertedWith(
+        "PettyGacha: The contract is unauthorized to manage this token"
+      );
+    });
     it("should breed correctly", async () => {
-      
-    })
-  })
+      await pettyGacha.openGacha(5, priceGacha2);
+      await pettyGacha.openGacha(5, priceGacha2);
+      await pettyGacha.setApprovalForAll(pettyGacha.address, true);
+      await pettyGacha.breedPetties(1, 2);
+      expect(await pettyGacha.ownerOf(3)).to.be.equal(accountA.address);
+      const p = await pettyGacha._tokenIdToPetty[3];
+      console.log(p);
+      expect(await p.rank).to.be.equal(3);
+    });
+  });
 });
