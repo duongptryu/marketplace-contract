@@ -1,7 +1,7 @@
 const { expect } = require("chai");
 const { ethers, network } = require("hardhat");
 
-describe.only("Petty NFT", function () {
+describe("Petty NFT", function () {
   let [accountA, accountB, accountC] = [];
   let pettyGacha;
   let gold;
