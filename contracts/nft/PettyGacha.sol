@@ -11,10 +11,20 @@ contract PettyGacha is ERC721, Ownable {
     using Counters for Counters.Counter;
     Counters.Counter private _tokenIdCount;
     Counters.Counter private _gachaIdCount;
+    Counters.Counter private _breedIdCount;
 
     IERC20 public immutable gold;
 
     string private _baseTokenURI;
+
+    struct BreedPetty {
+        uint256 startTime;
+        uint256 breedTime;
+        address owner;
+        uint256 tokenId1;
+        uint256 tokenId2;
+        uint8 rank;
+    }
 
     struct Gacha {
         uint256 price;
@@ -29,6 +39,8 @@ contract PettyGacha is ERC721, Ownable {
     uint8[3] public ranks = [1, 2, 3];
     mapping(uint256 => Gacha) public _idToGacha;
     mapping(uint256 => Petty) public _tokenIdToPetty;
+    mapping(uint256 => BreedPetty) public _idToBreedPetty;
+    mapping(uint8 => uint256) private _rankToTimeBreed;
 
     constructor(address _goldAddress) ERC721("Petty", "PET") {
         gold = IERC20(_goldAddress);
@@ -47,6 +59,10 @@ contract PettyGacha is ERC721, Ownable {
         _gachaIdCount.increment();
         _idToGacha[_gachaIdCount.current()] = Gacha(300 * 10**18, [0, 0, 100]);
         _gachaIdCount.increment();
+
+        _rankToTimeBreed[1] = 1 days;
+        _rankToTimeBreed[2] = 2 days;
+        _rankToTimeBreed[3] = 3 days;
     }
 
     function openGacha(uint8 _gachaId, uint256 _price)
@@ -72,7 +88,10 @@ contract PettyGacha is ERC721, Ownable {
         return tokenId;
     }
 
-    function breedPetties(uint256 _token1, uint256 _token2) public {
+    function breedPetties(uint256 _token1, uint256 _token2)
+        public
+        returns (uint256)
+    {
         require(
             ownerOf(_token1) == _msgSender(),
             "PettyGacha: sender is not owner of token"
@@ -100,11 +119,36 @@ contract PettyGacha is ERC721, Ownable {
         delete _tokenIdToPetty[_token1];
         delete _tokenIdToPetty[_token2];
 
+        _breedIdCount.increment();
+        uint256 idBreed = _breedIdCount.current();
+        _idToBreedPetty[idBreed] = BreedPetty(
+            block.timestamp,
+            _rankToTimeBreed[newRank],
+            _msgSender(),
+            _token1,
+            _token2,
+            newRank
+        );
+        return idBreed;
+    }
+
+    function claimPetty(uint256 _breedId) public {
+        BreedPetty memory breedInfo = _idToBreedPetty[_breedId];
+
+        require(breedInfo.owner == _msgSender(), "PettyGacha: Unauthorization");
+
+        require(
+            breedInfo.startTime + breedInfo.breedTime < block.timestamp,
+            "PettyGacha: breed time hasn't been exceeded"
+        );
+
+        delete _idToBreedPetty[_breedId];
+
         _tokenIdCount.increment();
         uint256 newTokenId = _tokenIdCount.current();
         _mint(_msgSender(), newTokenId);
 
-        _tokenIdToPetty[newTokenId] = Petty(newRank, 0);
+        _tokenIdToPetty[newTokenId] = Petty(breedInfo.rank, 0);
     }
 
     function _generateRandomRankFromRatio(
