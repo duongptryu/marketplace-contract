@@ -1,7 +1,7 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
-describe.only("TokenSale", () => {
+describe("TokenSale", () => {
   let [accountA, accountB, accountC] = [];
   let gold;
   let tokenSale;
