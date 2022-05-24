@@ -29,8 +29,8 @@ module.exports = {
       accounts:
         process.env.PRIVATE_KEY !== undefined ? [process.env.PRIVATE_KEY] : [],
     },
-    testnet: {
-      url: process.env.ROPSTEN_URL || "",
+    bsc_testnet: {
+      url: process.env.BSC_TESTNET_URL || "",
       accounts:
         process.env.PRIVATE_KEY !== undefined ? [process.env.PRIVATE_KEY] : [],
     },
