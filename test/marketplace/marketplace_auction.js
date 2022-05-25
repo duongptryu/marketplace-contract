@@ -1,18 +1,10 @@
 const { expect } = require("chai");
-const { ethers } = require("hardhat");
+const { ethers, network } = require("hardhat");
 
 describe.only("Marketplace-Auction", () => {
-  let [
-    admin,
-    seller,
-    buyer,
-    feeRecipient,
-    samplePaymentToken,
-    samplePaymentToken2,
-  ] = [];
+  let [admin, seller, buyer, feeRecipient, samplePaymentToken] = [];
   let petty;
   let gold;
-  let simpleToken;
   let marketplaceAuction;
   let defaultFeeRate = 10;
   let defaultFeeDecimal = 0;
@@ -21,14 +13,8 @@ describe.only("Marketplace-Auction", () => {
   let address0 = "0x0000000000000000000000000000000000000000";
   let oneDay = 86400000;
   beforeEach(async () => {
-    [
-      admin,
-      seller,
-      buyer,
-      feeRecipient,
-      samplePaymentToken,
-      samplePaymentToken2,
-    ] = await ethers.getSigners();
+    [admin, seller, buyer, feeRecipient, samplePaymentToken] =
+      await ethers.getSigners();
 
     const Petty = await ethers.getContractFactory("Petty");
     petty = await Petty.deploy();
@@ -218,6 +204,7 @@ describe.only("Marketplace-Auction", () => {
         );
     });
   });
+
   describe("cancel auction", () => {
     beforeEach(async () => {
       const tx = await gold.transfer(
@@ -271,7 +258,320 @@ describe.only("Marketplace-Auction", () => {
         .withArgs(1);
     });
   });
-  describe("add offer", () => {});
-  describe("Claim NFT", () => {});
-  describe("Refund token", () => {});
+
+  describe("add offer", () => {
+    beforeEach(async () => {
+      const mintNftTx = await petty.mint(admin.address);
+      await mintNftTx.wait();
+
+      const approveTx = await petty.setApprovalForAll(
+        marketplaceAuction.address,
+        true
+      );
+      await approveTx.wait();
+
+      const addTx = await marketplaceAuction.addAuction(
+        1,
+        gold.address,
+        ethers.utils.parseEther("1"),
+        ethers.utils.parseEther("0.5"),
+        oneDay
+      );
+      await addTx.wait();
+
+      await gold.transfer(buyer.address, ethers.utils.parseEther("5"));
+    });
+
+    it("should revert if auction already canceled", async () => {
+      await marketplaceAuction.cancelAuction(1);
+      await expect(
+        marketplaceAuction.addOffer(1, ethers.utils.parseEther("1.5"))
+      ).to.be.revertedWith("NFTMarketplace: auction already canceled");
+    });
+
+    it("should revert if auction exceed time", async () => {
+      await network.provider.send("evm_increaseTime", [oneDay * 2]);
+      await expect(
+        marketplaceAuction
+          .connect(buyer)
+          .addOffer(1, ethers.utils.parseEther("1.5"))
+      ).to.be.revertedWith("NFTMarketplace: auction exceed time");
+    });
+
+    it("should revert if not approved token for marketplace", async () => {
+      await expect(
+        marketplaceAuction
+          .connect(buyer)
+          .addOffer(1, ethers.utils.parseEther("1.5"))
+      ).to.be.revertedWith(
+        "NFTMarketplace: number of token approved not equal to amount bid"
+      );
+    });
+
+    it("should revert if amount smaller than auction highest price plus with lowest price increase", async () => {
+      await gold
+        .connect(buyer)
+        .approve(marketplaceAuction.address, ethers.utils.parseEther("1.5"));
+      await expect(
+        marketplaceAuction
+          .connect(buyer)
+          .addOffer(1, ethers.utils.parseEther("0.4"))
+      ).to.be.revertedWith(
+        "NFTMarkplace: amount must be greater than old price plus with lowest price increase"
+      );
+    });
+    it("should work correctly", async () => {
+      await gold
+        .connect(buyer)
+        .approve(marketplaceAuction.address, ethers.utils.parseEther("1.5"));
+      const tx = await marketplaceAuction
+        .connect(buyer)
+        .addOffer(1, ethers.utils.parseEther("0.5"));
+
+      await expect(tx)
+        .to.be.emit(marketplaceAuction, "OfferAdded")
+        .withArgs(
+          1,
+          1,
+          buyer.address,
+          ethers.utils.parseEther("0.5"),
+          1,
+          false
+        );
+    });
+
+    it("should extend 10 minute if offer in last 10 miniutes", async () => {
+      await network.provider.send("evm_increaseTime", [oneDay - 9 * 60]);
+      await gold
+        .connect(buyer)
+        .approve(marketplaceAuction.address, ethers.utils.parseEther("1.5"));
+      const tx = await marketplaceAuction
+        .connect(buyer)
+        .addOffer(1, ethers.utils.parseEther("0.5"));
+
+      await expect(tx)
+        .to.be.emit(marketplaceAuction, "OfferAdded")
+        .withArgs(1, 1, buyer.address, ethers.utils.parseEther("0.5"), 1, true);
+    });
+  });
+
+  describe("Claim NFT", () => {
+    beforeEach(async () => {
+      const mintNftTx = await petty.mint(admin.address);
+      await mintNftTx.wait();
+
+      const approveTx = await petty.setApprovalForAll(
+        marketplaceAuction.address,
+        true
+      );
+      await approveTx.wait();
+
+      const addTx = await marketplaceAuction.addAuction(
+        1,
+        gold.address,
+        ethers.utils.parseEther("1"),
+        ethers.utils.parseEther("0.5"),
+        oneDay
+      );
+      await addTx.wait();
+
+      await gold.transfer(buyer.address, ethers.utils.parseEther("5"));
+      await gold.transfer(seller.address, ethers.utils.parseEther("5"));
+    });
+
+    it("should revert if auction already canceled", async () => {
+      await marketplaceAuction.cancelAuction(1);
+      await expect(
+        marketplaceAuction.connect(buyer).claimNft(1)
+      ).to.be.revertedWith("NFTMarketplace: auction already canceled");
+    });
+
+    it("should revert if time auction not finish", async () => {
+      await expect(
+        marketplaceAuction.connect(buyer).claimNft(1)
+      ).to.be.revertedWith("NFTMarkplace: time auction not finish");
+    });
+
+    it("should revert if auction already claimed", async () => {
+      await gold
+        .connect(buyer)
+        .approve(marketplaceAuction.address, ethers.utils.parseEther("5"));
+      await gold
+        .connect(seller)
+        .approve(marketplaceAuction.address, ethers.utils.parseEther("5"));
+
+      await marketplaceAuction
+        .connect(buyer)
+        .addOffer(1, ethers.utils.parseEther("3"));
+
+      await marketplaceAuction
+        .connect(seller)
+        .addOffer(1, ethers.utils.parseEther("4"));
+
+      await network.provider.send("evm_increaseTime", [oneDay * 2]);
+      await marketplaceAuction.connect(seller).claimNft(1);
+      await expect(
+        marketplaceAuction.connect(buyer).claimNft(1)
+      ).to.be.revertedWith("NFTMarketplace: auction already claimed");
+    });
+
+    it("should revert if not owner of highest offer", async () => {
+      await gold
+        .connect(buyer)
+        .approve(marketplaceAuction.address, ethers.utils.parseEther("5"));
+      await gold
+        .connect(seller)
+        .approve(marketplaceAuction.address, ethers.utils.parseEther("5"));
+
+      await marketplaceAuction
+        .connect(buyer)
+        .addOffer(1, ethers.utils.parseEther("3"));
+
+      await marketplaceAuction
+        .connect(seller)
+        .addOffer(1, ethers.utils.parseEther("4"));
+
+      await network.provider.send("evm_increaseTime", [oneDay * 2]);
+      await expect(
+        marketplaceAuction.connect(buyer).claimNft(1)
+      ).to.be.revertedWith("NFTMarketplace: not the owner of highest bider");
+    });
+
+    it("should work correctly", async () => {
+      await gold
+        .connect(buyer)
+        .approve(marketplaceAuction.address, ethers.utils.parseEther("5"));
+      await gold
+        .connect(seller)
+        .approve(marketplaceAuction.address, ethers.utils.parseEther("5"));
+
+      await marketplaceAuction
+        .connect(buyer)
+        .addOffer(1, ethers.utils.parseEther("3"));
+
+      await marketplaceAuction
+        .connect(seller)
+        .addOffer(1, ethers.utils.parseEther("4"));
+
+      await network.provider.send("evm_increaseTime", [oneDay * 2]);
+      const tx = await marketplaceAuction.connect(seller).claimNft(1);
+
+      await expect(tx)
+        .to.be.emit(marketplaceAuction, "ClaimNft")
+        .withArgs(1, 2, 1, seller.address);
+
+      expect(await petty.ownerOf(1)).to.be.equal(seller.address);
+    });
+  });
+
+  describe("Refund token", () => {
+    beforeEach(async () => {
+      const mintNftTx = await petty.mint(admin.address);
+      await mintNftTx.wait();
+
+      const approveTx = await petty.setApprovalForAll(
+        marketplaceAuction.address,
+        true
+      );
+      await approveTx.wait();
+
+      const addTx = await marketplaceAuction.addAuction(
+        1,
+        gold.address,
+        ethers.utils.parseEther("1"),
+        ethers.utils.parseEther("0.5"),
+        oneDay
+      );
+      await addTx.wait();
+
+      await gold.transfer(buyer.address, ethers.utils.parseEther("5"));
+      await gold.transfer(seller.address, ethers.utils.parseEther("5"));
+    });
+
+    it("should revert if auction already canceled", async () => {
+      await marketplaceAuction.cancelAuction(1);
+      await expect(
+        marketplaceAuction.connect(buyer).refundToken(1, 1)
+      ).to.be.revertedWith("NFTMarketplace: auction already canceled");
+    });
+    it("should revert if auction time not finish", async () => {
+      await expect(
+        marketplaceAuction.connect(buyer).refundToken(1, 1)
+      ).to.be.revertedWith("NFTMarkplace: time auction not finish");
+    });
+    it("should revert if already claim offer", async () => {
+      await gold
+        .connect(buyer)
+        .approve(marketplaceAuction.address, ethers.utils.parseEther("5"));
+      await gold
+        .connect(seller)
+        .approve(marketplaceAuction.address, ethers.utils.parseEther("5"));
+
+      await marketplaceAuction
+        .connect(buyer)
+        .addOffer(1, ethers.utils.parseEther("3"));
+
+      await marketplaceAuction
+        .connect(seller)
+        .addOffer(1, ethers.utils.parseEther("4"));
+
+      network.provider.send("evm_increaseTime", [oneDay * 2]);
+      await marketplaceAuction.connect(buyer).refundToken(1, 1);
+
+      await expect(
+        marketplaceAuction.connect(buyer).refundToken(1, 1)
+      ).to.be.revertedWith("NFTMarkplace, Already refund this offer");
+    });
+
+    it("should revert if not owner of offer", async () => {
+      await gold
+        .connect(buyer)
+        .approve(marketplaceAuction.address, ethers.utils.parseEther("5"));
+      await gold
+        .connect(seller)
+        .approve(marketplaceAuction.address, ethers.utils.parseEther("5"));
+
+      await marketplaceAuction
+        .connect(buyer)
+        .addOffer(1, ethers.utils.parseEther("3"));
+
+      await marketplaceAuction
+        .connect(seller)
+        .addOffer(1, ethers.utils.parseEther("4"));
+
+      network.provider.send("evm_increaseTime", [oneDay * 2]);
+
+      await expect(
+        marketplaceAuction.connect(seller).refundToken(1, 1)
+      ).to.be.revertedWith("NFTMarkplace, Not owner of offer");
+    });
+
+    it("should work correctly", async () => {
+      await gold
+        .connect(buyer)
+        .approve(marketplaceAuction.address, ethers.utils.parseEther("3"));
+      await gold
+        .connect(seller)
+        .approve(marketplaceAuction.address, ethers.utils.parseEther("5"));
+
+      await marketplaceAuction
+        .connect(buyer)
+        .addOffer(1, ethers.utils.parseEther("3"));
+
+      await marketplaceAuction
+        .connect(seller)
+        .addOffer(1, ethers.utils.parseEther("4"));
+
+      const currentAmount = await gold.balanceOf(buyer.address);
+      network.provider.send("evm_increaseTime", [oneDay * 2]);
+      const tx = await marketplaceAuction.connect(buyer).refundToken(1, 1);
+      await expect(tx)
+        .to.be.emit(marketplaceAuction, "RefundToken")
+        .withArgs(1, 1, ethers.utils.parseEther("3"), buyer.address);
+
+      expect(await gold.balanceOf(buyer.address)).to.be.equal(
+        currentAmount.add(ethers.utils.parseEther("3"))
+      );
+    });
+  });
 });

@@ -278,12 +278,8 @@ contract MarketplaceAuction is Ownable {
     function addOffer(uint256 _auctionId, uint256 _amount) public {
         Auction storage auction = auctions[_auctionId];
         require(
-            auction.winner == address(0),
-            "NFTMarketplace: auction already finished"
-        );
-        require(
             auction.seller != address(0),
-            "NFTMarketplace: auction alraedy finished"
+            "NFTMarketplace: auction already canceled"
         );
         require(
             block.timestamp < auction.timeStart + auction.auctionTime,
@@ -333,8 +329,12 @@ contract MarketplaceAuction is Ownable {
     function claimNft(uint256 _auctionId) public {
         Auction storage auction = auctions[_auctionId];
         require(
+            auction.seller != address(0),
+            "NFTMarketplace: auction already canceled"
+        );
+        require(
             auction.winner == address(0),
-            "NFTMarketplace: nft already claimed"
+            "NFTMarketplace: auction already claimed"
         );
         require(
             auction.timeStart + auction.auctionTime <= block.timestamp,
@@ -357,7 +357,7 @@ contract MarketplaceAuction is Ownable {
         Auction memory auction = auctions[_auctionId];
         require(
             auction.seller != address(0),
-            "NFTMarketplace: auction invalid"
+            "NFTMarketplace: auction already canceled"
         );
         require(
             auction.timeStart + auction.auctionTime <= block.timestamp,
@@ -365,6 +365,10 @@ contract MarketplaceAuction is Ownable {
         );
 
         Offer memory offer = offers[_auctionId][_offerId];
+        require(
+            offer.bider != address(0),
+            "NFTMarkplace, Already refund this offer"
+        );
         require(offer.bider == msg.sender, "NFTMarkplace, Not owner of offer");
 
         IERC20(auction.tokenPayment).transfer(msg.sender, offer.amount);
