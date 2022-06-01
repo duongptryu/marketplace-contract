@@ -48,8 +48,6 @@ contract Staking is Ownable {
             "Staking: lock time must be greater than 1 month"
         );
         require(_minStaking >= 10 ether, "Staking: min staking is 10 ether");
-        require(_feeRate >= 0, "Staking: feeRate must be > 0");
-        require(_feeDecimal >= 0, "Staking: feeDecimal must be > 0");
 
         uint256 packageId = _stakePackageCount.current();
         _stakingPackage[packageId] = StakingPackage(
@@ -59,15 +57,26 @@ contract Staking is Ownable {
             _minStaking,
             false
         );
+        _stakePackageCount.increment();
+
+        emit AddedPackage(
+            packageId,
+            _lockTime,
+            _feeRate,
+            _feeDecimal,
+            _minStaking
+        );
     }
 
     function removePackage(uint256 _packageId) public onlyOwner {
         StakingPackage storage package = _stakingPackage[_packageId];
         require(
-            package.lockTime > 0 && package.isOffline,
+            package.lockTime > 0 && !package.isOffline,
             "Stake: Package is not exist"
         );
         package.isOffline = true;
+
+        emit RemovedPackage(_packageId);
     }
 
     function stake(uint256 _packageId, uint256 _amount) public {
@@ -198,19 +207,20 @@ contract Staking is Ownable {
             return amount;
         }
         return
-            ((feeRate / 10**(feeDecimal + 2)) / timeLock) *
+            ((feeRate / 10**feeDecimal) / timeLock) *
             amount *
             (block.timestamp - timeStart) *
             amount;
     }
 
     event AddedPackage(
+        uint256 indexed packageId,
         uint256 indexed lockTime,
         uint256 feeRate,
         uint256 feeDecimal,
         uint256 minStaking
     );
-    event RemovePackage(uint256 packageId);
+    event RemovedPackage(uint256 packageId);
     event Staked(
         address indexed account,
         uint256 indexed startTime,
