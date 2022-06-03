@@ -31,4 +31,17 @@ contract Reserve is Ownable {
 
         token.transfer(_to, _amount);
     }
+
+    function transferOwnership(address newOwner)
+        public
+        virtual
+        override
+        onlyOwner
+    {
+        require(
+            newOwner != address(0),
+            "Ownable: new owner is the zero address"
+        );
+        _transferOwnership(newOwner);
+    }
 }

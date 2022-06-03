@@ -5,10 +5,14 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "../reserve/reserve.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "hardhat/console.sol";
 
 contract Staking is Ownable {
     using Counters for Counters.Counter;
-    address private store;
+    using SafeMath for uint256;
+
+    Reserve private store;
     IERC20 private gold;
 
     struct StakingInfo {
@@ -32,7 +36,7 @@ contract Staking is Ownable {
     mapping(address => mapping(uint256 => StakingInfo)) public _stakingInfo;
 
     constructor(address _tokenAddress, address _store) {
-        store = _store;
+        store = Reserve(_store);
         gold = IERC20(_tokenAddress);
         _stakePackageCount.increment();
     }
@@ -94,7 +98,7 @@ contract Staking is Ownable {
             gold.allowance(msg.sender, address(this)) >= _amount,
             "Stake: Not enought token approve"
         );
-        gold.transferFrom(msg.sender, store, _amount);
+        gold.transferFrom(msg.sender, address(store), _amount);
 
         StakingInfo storage stakeInfo = _stakingInfo[msg.sender][_packageId];
 
@@ -150,7 +154,6 @@ contract Staking is Ownable {
             block.timestamp - stakeInfo.timePoint >= package.lockTime,
             "Stake: time lock is not exceed"
         );
-
         uint256 profit = _calculateProfit(
             stakeInfo.timePoint,
             stakeInfo.amount,
@@ -158,12 +161,11 @@ contract Staking is Ownable {
             package.feeRate,
             package.feeDecimal
         ) + stakeInfo.totalProfit;
-
         require(
-            gold.balanceOf(store) >= profit,
+            gold.balanceOf(address(store)) > profit,
             "Stake: Error storage not enought token"
         );
-        gold.transferFrom(store, msg.sender, profit);
+        store.withDrawTo(msg.sender, profit);
 
         emit UnStaked(
             msg.sender,
@@ -206,11 +208,13 @@ contract Staking is Ownable {
         if (feeRate == 0) {
             return amount;
         }
-        return
-            ((feeRate / 10**feeDecimal) / timeLock) *
-            amount *
-            (block.timestamp - timeStart) *
-            amount;
+        console.log(
+            (feeRate * amount * (block.timestamp - timeStart)) /
+                (10**(2 + feeDecimal) * timeLock)
+        );
+
+        return ((feeRate * amount * (block.timestamp - timeStart)) /
+            (10**(2 + feeDecimal) * timeLock));
     }
 
     event AddedPackage(
